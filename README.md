@@ -7,11 +7,15 @@ satellite imagery and renders three PNG visualization styles: building/road
 outline only; satellite with a low-contrast black/dark-gray overlay
 (`png_integrated`); and satellite with a high-contrast cyan/magenta overlay
 (`png_integrated_CyanMagenta`), then builds an anchor-based pairwise
-comparison dataset used to collect human similarity judgments. In the study
-this dataset was collected for, the annotation pairs were rendered and
-judged using `png_integrated` — the same style used as model input — rather
-than the higher-contrast `png_integrated_CyanMagenta` style; both are
-produced by this pipeline and either can be used for annotation.
+comparison dataset used to collect human similarity judgments.
+
+The cyan/magenta style was designed as a higher-contrast alternative for
+human annotation, but the study this pipeline was built for ultimately
+annotated and trained on `png_integrated` (the same style used as model
+input) throughout — the cyan/magenta renders were generated in full but not
+used downstream. Both styles are still produced by this pipeline; this
+repository does not itself decide which one a given project should adopt
+for annotation.
 
 ## Upstream dependency
 
