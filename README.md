@@ -3,11 +3,15 @@
 Constructs an image dataset for training and human-annotating an urban
 morphology embedding model, from African cities' 250 m hexagonal grid cells.
 For a stratified sample of grid cells per city, this downloads Sentinel-2
-satellite imagery and renders three PNG visualization styles (building/road
-outline only; satellite with a low-contrast overlay for model training;
-satellite with a high-contrast overlay for human annotation), then builds an
-anchor-based pairwise comparison dataset used to collect human similarity
-judgments.
+satellite imagery and renders three PNG visualization styles: building/road
+outline only; satellite with a low-contrast black/dark-gray overlay
+(`png_integrated`); and satellite with a high-contrast cyan/magenta overlay
+(`png_integrated_CyanMagenta`), then builds an anchor-based pairwise
+comparison dataset used to collect human similarity judgments. In the study
+this dataset was collected for, the annotation pairs were rendered and
+judged using `png_integrated` — the same style used as model input — rather
+than the higher-contrast `png_integrated_CyanMagenta` style; both are
+produced by this pipeline and either can be used for annotation.
 
 ## Upstream dependency
 
@@ -105,14 +109,17 @@ renders three PNG styles per cell:
    imagery. A lightweight reference render that needs no Earth Engine
    access.
 2. **`png_integrated/{City}/{GridID}.png`** - Sentinel-2 satellite
-   background with a muted black-building/dark-gray-road overlay. Used as
-   model training input (DINOv2/DINOv3-style): the low-contrast overlay
-   leaves satellite texture as the dominant visual signal.
+   background with a muted black-building/dark-gray-road overlay
+   (DINOv2/DINOv3-style): the low-contrast overlay leaves satellite texture
+   as the dominant visual signal. This is the style used both as model
+   input and, in the study this pipeline was built for, as the human
+   annotation image (see `annotation_pairs/`) — the same rendered image
+   served both purposes there.
 3. **`png_integrated_CyanMagenta/{City}/{GridID}.png`** - the same
    satellite background with a saturated cyan-building/magenta-road overlay
-   instead. Used for human expert similarity annotation, where a
-   high-contrast, easy-to-read overlay matters more than matching a model's
-   expected input statistics.
+   instead, for cases where a higher-contrast, easier-to-read overlay is
+   preferred for human annotation over matching the model-input style
+   exactly.
 
 Rendering decisions, and why they matter:
 
