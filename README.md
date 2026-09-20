@@ -3,19 +3,10 @@
 Constructs an image dataset for training and human-annotating an urban
 morphology embedding model, from African cities' 250 m hexagonal grid cells.
 For a stratified sample of grid cells per city, this downloads Sentinel-2
-satellite imagery and renders three PNG visualization styles: building/road
-outline only; satellite with a low-contrast black/dark-gray overlay
-(`png_integrated`); and satellite with a high-contrast cyan/magenta overlay
-(`png_integrated_CyanMagenta`), then builds an anchor-based pairwise
-comparison dataset used to collect human similarity judgments.
-
-The cyan/magenta style was designed as a higher-contrast alternative for
-human annotation, but the study this pipeline was built for ultimately
-annotated and trained on `png_integrated` (the same style used as model
-input) throughout — the cyan/magenta renders were generated in full but not
-used downstream. Both styles are still produced by this pipeline; this
-repository does not itself decide which one a given project should adopt
-for annotation.
+satellite imagery and renders two PNG visualization styles: building/road
+outline only, and satellite with a black/dark-gray building+road overlay
+(`png_integrated`), then builds an anchor-based pairwise comparison dataset
+used to collect human similarity judgments over the latter style.
 
 ## Upstream dependency
 
@@ -56,7 +47,7 @@ and stops at producing the image dataset and pair list.
 | 1 | Candidate cell selection | `sampling.py` (`candidates` subcommand) | Per-city full hex grid shapefiles | `{City}_sampled_cells.shp` per city (uniform-random subset, capped at 200 cells) |
 | 2 | Morphology-stratified sampling | `sampling.py` (`stratify` subcommand) | Stage 1 shapefiles | `SampleGridCell.csv`, `SamplingStatistics.csv` |
 | 3 | Satellite imagery download | `satellite_download.py` | Stage 2 output + Earth Engine | `png_satellite_imagery/{City}/{GridID}.png` |
-| 4 | Rendering | `render.py` | Stage 2 output, building/road vectors, satellite imagery | `png_street+building/`, `png_integrated/`, `png_integrated_CyanMagenta/` |
+| 4 | Rendering | `render.py` | Stage 2 output, building/road vectors, satellite imagery | `png_street+building/`, `png_integrated/` |
 | 5 | Annotation-pair construction | `annotation_pairs/01`-`06` | `png_integrated/` | `comparison_pairs.csv`, `labeling_data/` |
 
 Stages 1-2 are two passes of the same sampling problem, not independent
@@ -106,7 +97,7 @@ command rather than falling back to any credential file.
 ## Rendering (`render.py`)
 
 Clips each city's buildings and roads to every sampled hexagonal cell and
-renders three PNG styles per cell:
+renders two PNG styles per cell:
 
 1. **`png_street+building/{City}/{GridID}.png`** - white hexagon
    background, buildings (black) and roads (dark gray) only, no satellite
@@ -116,14 +107,8 @@ renders three PNG styles per cell:
    background with a muted black-building/dark-gray-road overlay
    (DINOv2/DINOv3-style): the low-contrast overlay leaves satellite texture
    as the dominant visual signal. This is the style used both as model
-   input and, in the study this pipeline was built for, as the human
-   annotation image (see `annotation_pairs/`) — the same rendered image
-   served both purposes there.
-3. **`png_integrated_CyanMagenta/{City}/{GridID}.png`** - the same
-   satellite background with a saturated cyan-building/magenta-road overlay
-   instead, for cases where a higher-contrast, easier-to-read overlay is
-   preferred for human annotation over matching the model-input style
-   exactly.
+   input and as the human annotation image (see `annotation_pairs/`) — the
+   same rendered image serves both purposes.
 
 Rendering decisions, and why they matter:
 
@@ -142,7 +127,7 @@ Rendering decisions, and why they matter:
   (a building fully occludes any road beneath its footprint); drawing roads
   on top would show road lines cutting through buildings that don't exist
   in reality.
-- **Road width 3.5** in the satellite-backed styles (vs. 1.5 in the
+- **Road width 3.5** in the satellite-backed style (vs. 1.5 in the
   satellite-free style), because a thin line becomes nearly invisible once
   it has to compete with real satellite texture.
 - **Hexagon alpha mask applied after rendering**, not before: the vector
@@ -230,12 +215,11 @@ imagery cache; see its `--help`.
 {output-dir}/
   png_street+building/{City}/{GridID}[_{StratumID}].png
   png_integrated/{City}/{GridID}[_{StratumID}].png
-  png_integrated_CyanMagenta/{City}/{GridID}[_{StratumID}].png
   png_satellite_imagery/{City}/{GridID}.png   # raw satellite cache, if kept
 ```
 
 See `data/example/images/` for a handful of real (non-synthetic) images
-across all three styles, from one small city (Apam, Ghana).
+across both styles, from one small city (Apam, Ghana).
 
 ### `comparison_pairs.csv` (annotation-pair output)
 
@@ -254,7 +238,7 @@ africa_morphology_imagery/
   africa_morphology_imagery/
     sampling.py              # Stages 1-2: candidate selection + stratified sampling
     satellite_download.py    # Stage 3: Sentinel-2 download via Earth Engine
-    render.py                # Stage 4: the 3 rendered PNG styles
+    render.py                # Stage 4: the 2 rendered PNG styles
     annotation_pairs/        # Stage 5: numbered anchor-based pair-generation pipeline
   data/
     reference/                # small durable config: city lists, sampling statistics

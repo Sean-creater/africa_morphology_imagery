@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Clip buildings/roads to sampled grid cells and render the three output styles.
+"""Clip buildings/roads to sampled grid cells and render the two output styles.
 
 For each sampled hexagonal grid cell, clips that city's building footprints
-and road network to the cell boundary and renders three PNG styles:
+and road network to the cell boundary and renders two PNG styles:
 
 1. `png_street+building/{City}/{GridID}.png` - white hexagon background,
    buildings and roads only, no satellite. A lightweight reference render
@@ -10,15 +10,10 @@ and road network to the cell boundary and renders three PNG styles:
 
 2. `png_integrated/{City}/{GridID}.png` - Sentinel-2 satellite background
    (via `satellite_download.py`) with a black/dark-gray building+road
-   overlay. Used as DINOv2/DINOv3 training input: the muted, low-contrast
-   overlay leaves the satellite texture as the dominant visual signal.
-
-3. `png_integrated_CyanMagenta/{City}/{GridID}.png` - the same satellite
-   background with a cyan/magenta overlay instead. Used for human expert
-   similarity annotation: the saturated, mutually opponent colors make the
-   building and road layers easy to read at a glance, which matters when a
-   person is visually comparing many image pairs rather than a model
-   learning from pixel statistics.
+   overlay. Used both as DINOv2/DINOv3 training input and, unmodified, as
+   the image shown to human experts for similarity annotation (see
+   `annotation_pairs/`): the muted, low-contrast overlay leaves the
+   satellite texture as the dominant visual signal.
 
 Rendering decisions (all deliberate, not incidental):
 
@@ -80,18 +75,8 @@ from satellite_download import GridCellImageDownloader, GridCell
 IMAGE_SIZE_INCHES = (10, 10)
 DPI = 100
 
-COLOR_SCHEMES = {
-    'black': {
-        'building': '#000000',
-        'road': '#222222',
-        'description': 'Black buildings + dark gray roads, for model training',
-    },
-    'cyan-magenta': {
-        'building': '#00FFFF',
-        'road': '#FF00FF',
-        'description': 'Cyan buildings + magenta roads, high contrast for expert annotation',
-    },
-}
+INTEGRATED_BUILDING_COLOR = '#000000'
+INTEGRATED_ROAD_COLOR = '#222222'
 
 # png_street+building style (no satellite; unchanged regardless of scheme).
 BUILDING_COLOR_STREET_BUILDING = '#000000'
@@ -189,17 +174,14 @@ def render_street_building(cell_geom, buildings_clipped, highways_clipped, outpu
 
 
 def render_integrated(cell_geom, buildings_clipped, highways_clipped,
-                       satellite_img, satellite_bounds, output_path, target_crs,
-                       color_scheme='black'):
-    """Render a satellite-backed style (black or cyan-magenta overlay).
+                       satellite_img, satellite_bounds, output_path, target_crs):
+    """Render the satellite-backed style: black/dark-gray building+road overlay.
 
     `satellite_bounds` is the buffered download extent (see module
     docstring); the axis limits below use the original `cell_geom` bounds
     instead, which crops the buffered satellite tile back down to the exact
     hexagon bounding box before the hexagon alpha mask is applied.
     """
-    colors = COLOR_SCHEMES.get(color_scheme, COLOR_SCHEMES['black'])
-
     fig, ax = plt.subplots(figsize=IMAGE_SIZE_INCHES, dpi=DPI)
     fig.patch.set_alpha(0.0)
     ax.patch.set_alpha(0.0)
@@ -214,13 +196,13 @@ def render_integrated(cell_geom, buildings_clipped, highways_clipped,
     # Roads first (zorder=2): must sit below buildings.
     if len(highways_clipped) > 0:
         highways_clipped.plot(
-            ax=ax, color=colors['road'], linewidth=ROAD_WIDTH_INTEGRATED,
+            ax=ax, color=INTEGRATED_ROAD_COLOR, linewidth=ROAD_WIDTH_INTEGRATED,
             alpha=1.0, zorder=2, antialiased=False,
         )
     # Buildings on top (zorder=3), sharp edges.
     if len(buildings_clipped) > 0:
         buildings_clipped.plot(
-            ax=ax, color=colors['building'], edgecolor='none',
+            ax=ax, color=INTEGRATED_BUILDING_COLOR, edgecolor='none',
             alpha=1.0, linewidth=0, zorder=3, antialiased=False,
         )
 
@@ -277,9 +259,9 @@ def download_satellite_for_cell(grid_cell, downloader, logger, buffer_m=DEFAULT_
 
 def process_city(city_name, country_name, buildings_path, highways_path,
                   output_dirs, metadata_df, downloader=None, logger=None):
-    """Render all three PNG styles for every sampled cell of one city."""
+    """Render both PNG styles for every sampled cell of one city."""
     logger = logger or logging.getLogger(__name__)
-    output_dir_street_building, output_dir_integrated, output_dir_integrated_cm, grid_cells_dir = output_dirs
+    output_dir_street_building, output_dir_integrated, grid_cells_dir = output_dirs
 
     logger.info(f"Processing: {city_name}, {country_name}")
 
@@ -311,8 +293,7 @@ def process_city(city_name, country_name, buildings_path, highways_path,
 
     city_output_street_building = output_dir_street_building / city_name
     city_output_integrated = output_dir_integrated / city_name
-    city_output_integrated_cm = output_dir_integrated_cm / city_name
-    for d in (city_output_street_building, city_output_integrated, city_output_integrated_cm):
+    for d in (city_output_street_building, city_output_integrated):
         d.mkdir(parents=True, exist_ok=True)
 
     processed_count = 0
@@ -325,9 +306,8 @@ def process_city(city_name, country_name, buildings_path, highways_path,
 
         output_street_building = city_output_street_building / filename
         output_integrated = city_output_integrated / filename
-        output_integrated_cm = city_output_integrated_cm / filename
 
-        if output_street_building.exists() and output_integrated.exists() and output_integrated_cm.exists():
+        if output_street_building.exists() and output_integrated.exists():
             processed_count += 1
             continue
 
@@ -339,7 +319,7 @@ def process_city(city_name, country_name, buildings_path, highways_path,
                 render_street_building(cell_geom, buildings_clipped, highways_clipped,
                                         output_street_building, target_crs)
 
-            if (not output_integrated.exists() or not output_integrated_cm.exists()) and downloader is not None:
+            if not output_integrated.exists() and downloader is not None:
                 meta_row = metadata_df[metadata_df['GridID'] == grid_id]
                 if len(meta_row) > 0:
                     meta = meta_row.iloc[0]
@@ -350,15 +330,8 @@ def process_city(city_name, country_name, buildings_path, highways_path,
                     sat_img, sat_bounds = download_satellite_for_cell(
                         grid_cell_obj, downloader, logger, buffer_m=DEFAULT_SATELLITE_BUFFER_M,
                     )
-
-                    if not output_integrated.exists():
-                        render_integrated(cell_geom, buildings_clipped, highways_clipped,
-                                           sat_img, sat_bounds, output_integrated, target_crs,
-                                           color_scheme='black')
-                    if not output_integrated_cm.exists():
-                        render_integrated(cell_geom, buildings_clipped, highways_clipped,
-                                           sat_img, sat_bounds, output_integrated_cm, target_crs,
-                                           color_scheme='cyan-magenta')
+                    render_integrated(cell_geom, buildings_clipped, highways_clipped,
+                                       sat_img, sat_bounds, output_integrated, target_crs)
                 else:
                     logger.warning(f"  Metadata not found for {grid_id}")
 
@@ -378,7 +351,7 @@ def process_city(city_name, country_name, buildings_path, highways_path,
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Clip buildings/roads to sampled grid cells and render the 3 output styles',
+        description='Clip buildings/roads to sampled grid cells and render the 2 output styles',
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument('--city-path-csv', type=Path, required=True,
@@ -431,8 +404,7 @@ def main():
 
     output_dir_street_building = args.output_dir / 'png_street+building'
     output_dir_integrated = args.output_dir / 'png_integrated'
-    output_dir_integrated_cm = args.output_dir / 'png_integrated_CyanMagenta'
-    for d in (output_dir_street_building, output_dir_integrated, output_dir_integrated_cm):
+    for d in (output_dir_street_building, output_dir_integrated):
         d.mkdir(parents=True, exist_ok=True)
 
     city_paths = load_city_paths(args.city_path_csv, start_idx, end_idx)
@@ -445,7 +417,7 @@ def main():
         try:
             cells_processed = process_city(
                 row['City'], row['Country'], row['Buildings_Path'], row['Highways_Path'],
-                (output_dir_street_building, output_dir_integrated, output_dir_integrated_cm, args.grid_cells_dir),
+                (output_dir_street_building, output_dir_integrated, args.grid_cells_dir),
                 metadata_df, downloader, logger,
             )
             if cells_processed > 0:
