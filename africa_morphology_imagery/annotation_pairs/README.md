@@ -30,11 +30,6 @@ cd africa_morphology_imagery/annotation_pairs
 bash run_pipeline.sh /path/to/png_integrated
 ```
 
-## QC diagnostics
-
-`analyze_pair_balance.py` and `analyze_triplets.py` provide post-hoc checks
-on city/layer participation and derivable triplet structure.
-
 ## Requirements
 
 Python 3.7+, standard library only.
