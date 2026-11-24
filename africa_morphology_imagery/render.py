@@ -115,8 +115,21 @@ def get_city_range(config, range_name):
 
 
 def load_city_paths(city_path_csv: Path, start_idx=0, end_idx=None):
+    """
+    Load the city-path CSV. Path columns (Buildings_Path, Highways_Path,
+    Grid_Path) may contain {country}/{city} template placeholders (as in
+    data/reference/SampleCityPath.csv); these are expanded per-row using
+    that row's own City/Country columns. Rows with already-literal paths
+    are left unchanged.
+    """
     df = pd.read_csv(city_path_csv)
     df = df.iloc[start_idx:end_idx] if end_idx is not None else df.iloc[start_idx:]
+    path_cols = [c for c in ("Buildings_Path", "Highways_Path", "Grid_Path") if c in df.columns]
+    for col in path_cols:
+        df[col] = [
+            p.format(country=row["Country"], city=row["City"]) if "{country}" in p or "{city}" in p else p
+            for p, (_, row) in zip(df[col], df.iterrows())
+        ]
     return df
 
 
