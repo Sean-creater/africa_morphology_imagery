@@ -11,9 +11,8 @@ pairwise comparison dataset used to collect human similarity judgments.
 
 This pipeline reads per-city 250 m hexagonal grid cells with morphology
 metrics already computed, produced by the companion
-[`africa_morphology_metrics`](https://github.com/Sean-creater/africa_morphology_metrics)
-pipeline. It does not compute morphology metrics itself; prepare its
-output first.
+`africa_morphology_metrics` pipeline. It does not compute morphology
+metrics itself; prepare its output first.
 
 ## Downstream use
 
